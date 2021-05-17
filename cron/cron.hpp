@@ -5,7 +5,7 @@
 /// @author    : Luis Monteiro                                                                     
 /// ===============================================================================================
 #pragma once
-                     
+
 #include <chrono>
 #include <set>
 #include <stdexcept>
@@ -47,7 +47,7 @@ namespace Cron {
     ///                             │ │ │ │ ┌──────── month            [1 - 12]
     ///                             │ │ │ │ │ ┌────── day of the week  [0 -  6]
     ///                             │ │ │ │ │ │
-    /// @param exp cron expression "*/// */// * *"
+    /// @param exp cron expression "* * * * * *"
     /// @return cron space
     ///
     Space Build(const std::string& exp);
@@ -61,11 +61,12 @@ namespace Cron {
     ///
     Time Next(const Time& point, const Space& location);
 
-    ///
-    /// sum operator - wrapper for "Next" function
-    ///
-    inline Time operator+(const Time& point, const Space& location) {
-        return Next(point, location);
-    }
-
 } // namespace Cron
+
+///
+/// sum operator 
+/// @brief is wrapper for "Next" function
+///
+inline Cron::Time operator+(const Cron::Time& point, const Cron::Space& location) {
+    return Cron::Next(point, location);
+}
