@@ -134,8 +134,8 @@ namespace Cron {
             }
 
           private:
-            mutable const_iterator beg_;
-            mutable const_iterator end_;
+            const_iterator beg_;
+            const_iterator end_;
         };
         template <typename iterator_t>
         static void reset(iterator_t beg, iterator_t end) {
@@ -194,8 +194,8 @@ namespace Cron {
     /// @brief this structure ensures that we always have a valid datetime
     ///
     struct Calendar : std::vector<std::reference_wrapper<int>> {
-        explicit Calendar(const std::time_t& time) : tm_{} {
-            std::memcpy(&tm_, std::localtime(&time), sizeof(tm_));
+        explicit Calendar(const std::time_t& time) : tm_{}, tt_{time} {
+            std::memcpy(&tm_, std::localtime(&tt_), sizeof(tm_));
             emplace_back(tm_.tm_sec);
             emplace_back(tm_.tm_min);
             emplace_back(tm_.tm_hour);
@@ -216,13 +216,13 @@ namespace Cron {
                 else
                     ++tm_.tm_year;
             }
-            if (std::mktime(&tm_) < 0)
+            if (tt_ = std::mktime(&tm_); tt_ < 0)
                 throw BadExpression("[check cron expression] something went wrong");
         }
-        auto time() { return std::mktime(&tm_); }
-
+        auto time() const { return tt_; }
       private:
         std::tm tm_;
+        std::time_t tt_;
     };
 
     ///
@@ -234,20 +234,31 @@ namespace Cron {
     ///
     Time Next(const Time& point, const Space& location) {
         // fallback: maximum iterations
-        const int MAX_ITERATIONS = 366;
+        constexpr int MAX_ITERATIONS = 366;
         // create candendar
         auto calendar = Calendar(Clock::to_time_t(point + std::chrono::seconds(1)));
         // search process
         auto calendar_datetime = tool::view<Calendar>(calendar, 0, 5);
         auto location_datetime = tool::view<Space>(location, 0, 5);
         calendar.update(
-            calendar_datetime, location_datetime, tool::begin(calendar_datetime, location_datetime));
-        auto calendar_date = tool::view<Calendar>(calendar, 3, 5);
-        auto location_date = tool::view<Space>(location, 3, 5);
-        for (auto i = 0; !tool::check(calendar, location); ++i) {
-            if (i > MAX_ITERATIONS)
-                throw BadExpression("[check cron expression] maximum search iterations reached");
+            calendar_datetime, 
+            location_datetime, tool::begin(calendar_datetime, location_datetime));
+
+        if(!tool::check(calendar, location)) {
+            auto location_time = tool::view<Space>(location, 0, 3);
+            auto calendar_time = tool::view<Calendar>(calendar, 0, 3);
+            auto location_date = tool::view<Space>(location, 3, 5);
+            auto calendar_date = tool::view<Calendar>(calendar, 3, 5);
+            
             calendar.update(calendar_date, location_date, tool::next(location_date));
+
+            for (auto i = 1; !tool::check(calendar, location); ++i) {
+                if (i > MAX_ITERATIONS)
+                    throw BadExpression("[check cron expression] maximum search iterations reached");
+                calendar.update(calendar_date, location_date, tool::next(location_date));
+            }
+            
+            calendar.update(calendar_time, location_time, (tool::reset(location_time), false));
         }
         return Clock::from_time_t(calendar.time());
     }
